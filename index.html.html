@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار التزامن السحابي — المرجع</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Tajawal', 'Tahoma', sans-serif;
+            background: #f0f2f5;
+            color: #1a1a2e;
+            min-height: 100vh;
+        }
+
+        /* ===== Header ===== */
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .header h1 { font-size: 1.4rem; font-weight: 700; }
+        .header .subtitle { font-size: 0.85rem; opacity: 0.7; margin-top: 4px; }
+
+        /* ===== Connection Status ===== */
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 18px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: all 0.4s;
+        }
+
+        .connection-status.online { background: rgba(0,200,83,0.15); color: #00c853; }
+        .connection-status.offline { background: rgba(255,82,82,0.15); color: #ff5252; }
+        .connection-status.connecting { background: rgba(255,152,0,0.15); color: #ff9800; }
+
+        .status-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            transition: background 0.4s;
+        }
+
+        .online .status-dot { background: #00c853; animation: pulse 2s infinite; }
+        .offline .status-dot { background: #ff5252; animation: pulse 1.5s infinite; }
+        .connecting .status-dot { background: #ff9800; animation: pulse 1s infinite; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.85); }
+        }
+
+        /* ===== Container ===== */
+        .container { max-width: 920px; margin: 25px auto; padding: 0 20px; }
+
+        /* ===== Info Cards ===== */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 14px;
+            margin-bottom: 22px;
+        }
+
+        .info-card {
+            background: white;
+            border-radius: 12px;
+            padding: 18px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+            transition: transform 0.2s;
+        }
+
+        .info-card:hover { transform: translateY(-2px); }
+        .info-card .label { font-size: 0.78rem; color: #888; margin-bottom: 6px; }
+        .info-card .value { font-size: 1.3rem; font-weight: 700; color: #1a1a2e; }
+
+        /* ===== Sections ===== */
+        .section-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 18px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+        }
+
+        .section-card h2 {
+            font-size: 1.05rem;
+            margin-bottom: 16px;
+            color: #1a1a2e;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* ===== Form ===== */
+        .form-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+        .form-row input {
+            flex: 1;
+            min-width: 140px;
+            padding: 12px 16px;
+            border: 2px solid #e8e8e8;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.3s;
+            background: #fafafa;
+        }
+
+        .form-row input:focus { border-color: #006631; background: #fff; }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary { background: #006631; color: white; }
+        .btn-primary:hover { background: #005528; transform: translateY(-1px); }
+        .btn-primary:active { transform: translateY(0); }
+
+        .btn-danger {
+            background: transparent;
+            color: #e53935;
+            border: 1.5px solid #e53935;
+            padding: 5px 14px;
+            font-size: 0.78rem;
+            border-radius: 8px;
+        }
+        .btn-danger:hover { background: #e53935; color: white; }
+
+        /* ===== Table ===== */
+        table { width: 100%; border-collapse: collapse; }
+
+        th {
+            background: #f5f6f8;
+            padding: 11px 14px;
+            text-align: right;
+            font-weight: 600;
+            font-size: 0.82rem;
+            color: #777;
+            border-bottom: 2px solid #eee;
+        }
+
+        td {
+            padding: 11px 14px;
+            border-bottom: 1px solid #f2f2f2;
+            font-size: 0.88rem;
+        }
+
+        tr:hover td { background: #f9fafb; }
+
+        .empty-state { text-align: center; padding: 40px; color: #aaa; font-size: 0.95rem; }
+
+        /* ===== Sync Badges ===== */
+        .sync-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.73rem;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 8px;
+        }
+
+        .sync-badge.synced { background: #e8f5e9; color: #2e7d32; }
+        .sync-badge.pending { background: #fff3e0; color: #ef6c00; }
+        .sync-badge.cached { background: #e3f2fd; color: #1565c0; }
+
+        .data-count {
+            font-size: 0.78rem;
+            font-weight: 600;
+            background: #e8f5e9;
+            color: #006631;
+            padding: 3px 12px;
+            border-radius: 12px;
+        }
+
+        /* ===== Device Tag ===== */
+        .device-tag {
+            font-size: 0.72rem;
+            background: #f0f0f0;
+            padding: 2px 8px;
+            border-radius: 6px;
+            color: #888;
+            font-family: monospace;
+            direction: ltr;
+        }
+
+        /* ===== Toast ===== */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: none;
+        }
+
+        .toast {
+            padding: 12px 24px;
+            border-radius: 10px;
+            color: white;
+            font-family: 'Tajawal', sans-serif;
+            font-size: 0.88rem;
+            font-weight: 600;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s forwards;
+            white-space: nowrap;
+        }
+
+        .toast.success { background: #00c853; }
+        .toast.error { background: #e53935; }
+        .toast.info { background: #2196f3; }
+        .toast.warning { background: #ff9800; }
+
+        @keyframes toastIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateY(-20px); } }
+
+        /* ===== Activity Log ===== */
+        .log-entries {
+            max-height: 220px;
+            overflow-y: auto;
+            font-size: 0.78rem;
+            font-family: 'Courier New', monospace;
+            direction: ltr;
+            text-align: left;
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 14px;
+            line-height: 1.7;
+        }
+
+        .log-entry { padding: 2px 0; border-bottom: 1px solid #eef0f2; }
+        .log-entry .time { color: #aaa; margin-left: 6px; }
+        .log-entry.success { color: #2e7d32; }
+        .log-entry.error { color: #c62828; }
+        .log-entry.info { color: #1565c0; }
+        .log-entry.warning { color: #e65100; }
+
+        /* ===== Footer ===== */
+        .footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 0.78rem;
+            color: #aaa;
+        }
+
+        .footer code {
+            background: #f0f0f0;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            color: #666;
+        }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 600px) {
+            .header { flex-direction: column; text-align: center; padding: 16px; }
+            .header h1 { font-size: 1.2rem; }
+            .form-row { flex-direction: column; }
+            .form-row .btn { width: 100%; }
+            .info-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+            table { font-size: 0.82rem; }
+            th, td { padding: 8px 10px; }
+            .container { padding: 0 12px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <div class="header">
+        <div>
+            <h1>🔄 اختبار التزامن السحابي</h1>
+            <div class="subtitle">بياناتك تتكلّم — المرجع | Firebase Firestore</div>
+        </div>
+        <div class="connection-status connecting" id="connStatus">
+            <span class="status-dot"></span>
+            <span id="connText">جاري الاتصال...</span>
+        </div>
+    </div>
+
+    <div class="container">
+
+        <!-- Info Cards -->
+        <div class="info-grid">
+            <div class="info-card">
+                <div class="label">عدد السجلات</div>
+                <div class="value" id="totalRecords">٠</div>
+            </div>
+            <div class="info-card">
+                <div class="label">آخر تزامن</div>
+                <div class="value" id="lastSync" style="font-size:0.9rem;">—</div>
+            </div>
+            <div class="info-card">
+                <div class="label">مصدر البيانات</div>
+                <div class="value" id="dataSource" style="font-size:0.9rem;">—</div>
+            </div>
+            <div class="info-card">
+                <div class="label">كتابات معلّقة</div>
+                <div class="value" id="pendingWrites">لا</div>
+            </div>
+        </div>
+
+        <!-- Add Record -->
+        <div class="section-card">
+            <h2>➕ إضافة سجل تجريبي</h2>
+            <div class="form-row">
+                <input type="text" id="inputName" placeholder="اسم العنصر (مثال: فلتر الأقسام)">
+                <input type="text" id="inputValue" placeholder="القيمة (مثال: مكتمل ✅)">
+                <button class="btn btn-primary" onclick="addRecord()">إضافة</button>
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="section-card">
+            <h2>
+                📋 البيانات المتزامنة — Realtime
+                <span class="data-count" id="dataCount">٠ سجل</span>
+            </h2>
+            <div style="overflow-x:auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width:40px">#</th>
+                            <th>العنصر</th>
+                            <th>القيمة</th>
+                            <th>الجهاز</th>
+                            <th>الوقت</th>
+                            <th>الحالة</th>
+                            <th style="width:60px">حذف</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataBody">
+                        <tr><td colspan="7" class="empty-state">جاري الاتصال بـ Firestore...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Activity Log -->
+        <div class="section-card">
+            <h2>📝 سجل النشاط (Activity Log)</h2>
+            <div class="log-entries" id="logEntries"></div>
+        </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        معرّف الجهاز: <code id="deviceId">—</code>
+        &nbsp;|&nbsp;
+        المشروع: <code>yds1-19dab</code>
+        &nbsp;|&nbsp;
+        افتح هذا الملف من جهاز ثاني لاختبار التزامن
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        // ==========================================
+        //  1. DEVICE ID — unique per browser
+        // ==========================================
+        let deviceId = localStorage.getItem('yds_sync_device_id');
+        if (!deviceId) {
+            deviceId = 'DEV-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+            localStorage.setItem('yds_sync_device_id', deviceId);
+        }
+        document.getElementById('deviceId').textContent = deviceId;
+
+        // ==========================================
+        //  2. FIREBASE INIT
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyD7NSbVEWvHxdY4bNSoMiFVtmiOLPE9Obg",
+            authDomain: "yds1-19dab.firebaseapp.com",
+            projectId: "yds1-19dab",
+            storageBucket: "yds1-19dab.firebasestorage.app",
+            messagingSenderId: "435199871885",
+            appId: "1:435199871885:web:e17eefae35e622b18e8bc4"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // ==========================================
+        //  3. ENABLE OFFLINE PERSISTENCE
+        // ==========================================
+        db.enablePersistence({ synchronizeTabs: true })
+            .then(() => {
+                addLog('✅ Offline persistence enabled (multi-tab)', 'success');
+            })
+            .catch(err => {
+                if (err.code === 'failed-precondition') {
+                    addLog('⚠️ Persistence limited — multiple tabs open', 'warning');
+                } else if (err.code === 'unimplemented') {
+                    addLog('⚠️ Browser does not support persistence', 'warning');
+                } else {
+                    addLog('❌ Persistence error: ' + err.message, 'error');
+                }
+            });
+
+        const COLLECTION = 'test_sync';
+        let isFirstSnapshot = true;
+
+        // ==========================================
+        //  4. CONNECTION MONITOR
+        // ==========================================
+        const connStatus = document.getElementById('connStatus');
+        const connText = document.getElementById('connText');
+
+        function setConnectionUI(state) {
+            connStatus.className = 'connection-status ' + state;
+            const labels = {
+                online: 'متصل بالسحابة ☁️',
+                offline: 'غير متصل — وضع محلي',
+                connecting: 'جاري الاتصال...'
+            };
+            connText.textContent = labels[state] || labels.connecting;
+        }
+
+        // Browser online/offline events
+        window.addEventListener('online', () => {
+            setConnectionUI('online');
+            showToast('تم الاتصال بالسحابة ☁️', 'success');
+            addLog('🟢 Browser: ONLINE', 'success');
+        });
+
+        window.addEventListener('offline', () => {
+            setConnectionUI('offline');
+            showToast('انقطع الاتصال — البيانات تُحفظ محلياً', 'warning');
+            addLog('🔴 Browser: OFFLINE', 'error');
+        });
+
+        // ==========================================
+        //  5. FIRESTORE REAL-TIME LISTENER
+        // ==========================================
+        db.collection(COLLECTION)
+          .orderBy('timestamp', 'desc')
+          .onSnapshot({ includeMetadataChanges: true }, snapshot => {
+
+            const fromCache = snapshot.metadata.fromCache;
+            const hasPending = snapshot.metadata.hasPendingWrites;
+
+            // Update connection indicator based on Firestore source
+            if (!fromCache && navigator.onLine) {
+                setConnectionUI('online');
+            } else if (!navigator.onLine) {
+                setConnectionUI('offline');
+            }
+
+            // Update info cards
+            document.getElementById('totalRecords').textContent =
+                snapshot.size.toLocaleString('ar-SA');
+            document.getElementById('lastSync').textContent =
+                new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            document.getElementById('dataSource').textContent =
+                fromCache ? '💾 محلي (كاش)' : '☁️ سحابي (سيرفر)';
+            document.getElementById('pendingWrites').textContent =
+                hasPending ? '⏳ نعم' : '✓ لا';
+            document.getElementById('dataCount').textContent =
+                snapshot.size.toLocaleString('ar-SA') + ' سجل';
+
+            // Render table
+            const tbody = document.getElementById('dataBody');
+
+            if (snapshot.empty) {
+                tbody.innerHTML = '<tr><td colspan="7" class="empty-state">' +
+                    'لا توجد بيانات — أضف سجل تجريبي من فورم الإضافة ☝️</td></tr>';
+                addLog('📭 Collection is empty', 'info');
+                isFirstSnapshot = false;
+                return;
+            }
+
+            tbody.innerHTML = '';
+            let idx = 1;
+
+            snapshot.forEach(doc => {
+                const d = doc.data();
+                const meta = doc.metadata;
+
+                let badgeClass, badgeText;
+                if (meta.hasPendingWrites) {
+                    badgeClass = 'pending';
+                    badgeText = '⏳ قيد الحفظ';
+                } else if (meta.fromCache) {
+                    badgeClass = 'cached';
+                    badgeText = '💾 كاش';
+                } else {
+                    badgeClass = 'synced';
+                    badgeText = '✓ متزامن';
+                }
+
+                let timeStr = '—';
+                if (d.timestamp) {
+                    try {
+                        timeStr = d.timestamp.toDate().toLocaleString('ar-SA', {
+                            month: 'short', day: 'numeric',
+                            hour: '2-digit', minute: '2-digit'
+                        });
+                    } catch(e) { timeStr = '—'; }
+                }
+
+                const tr = document.createElement('tr');
+                tr.innerHTML =
+                    '<td>' + idx + '</td>' +
+                    '<td><strong>' + escapeHtml(d.name || '—') + '</strong></td>' +
+                    '<td>' + escapeHtml(d.value || '—') + '</td>' +
+                    '<td><span class="device-tag">' + escapeHtml(d.device || '?') + '</span></td>' +
+                    '<td style="font-size:0.78rem;color:#999;">' + timeStr + '</td>' +
+                    '<td><span class="sync-badge ' + badgeClass + '">' + badgeText + '</span></td>' +
+                    '<td><button class="btn btn-danger" onclick="window._deleteRecord(\'' + doc.id + '\')">حذف</button></td>';
+
+                tbody.appendChild(tr);
+                idx++;
+            });
+
+            // Log snapshot changes (skip first load to avoid noise)
+            if (!isFirstSnapshot) {
+                snapshot.docChanges().forEach(change => {
+                    const name = change.doc.data().name || '?';
+                    const dev = change.doc.data().device || '?';
+                    if (change.type === 'added') {
+                        showToast('➕ سجل جديد: ' + name, 'success');
+                        addLog('➕ Added: "' + name + '" from [' + dev + ']', 'success');
+                    } else if (change.type === 'modified') {
+                        addLog('✏️ Modified: "' + name + '"', 'info');
+                    } else if (change.type === 'removed') {
+                        showToast('🗑️ تم حذف: ' + name, 'info');
+                        addLog('🗑️ Removed: "' + name + '"', 'error');
+                    }
+                });
+            } else {
+                addLog('📦 Initial load: ' + snapshot.size + ' docs | source: ' + (fromCache ? 'CACHE' : 'SERVER'), 'info');
+            }
+
+            isFirstSnapshot = false;
+
+        }, error => {
+            setConnectionUI('offline');
+            addLog('❌ Firestore listener error: ' + error.message, 'error');
+            showToast('❌ خطأ: ' + error.message, 'error');
+
+            // Show helpful message for common errors
+            const tbody = document.getElementById('dataBody');
+            if (error.code === 'permission-denied') {
+                tbody.innerHTML = '<tr><td colspan="7" class="empty-state" style="color:#e53935;">' +
+                    '⛔ صلاحيات Firestore مغلقة — فعّل Test Mode من Rules</td></tr>';
+            } else {
+                tbody.innerHTML = '<tr><td colspan="7" class="empty-state" style="color:#e53935;">' +
+                    '❌ ' + escapeHtml(error.message) + '</td></tr>';
+            }
+        });
+
+        // ==========================================
+        //  6. CRUD FUNCTIONS
+        // ==========================================
+        window.addRecord = async function() {
+            const nameInput = document.getElementById('inputName');
+            const valueInput = document.getElementById('inputValue');
+            const name = nameInput.value.trim();
+            const value = valueInput.value.trim();
+
+            if (!name) {
+                showToast('⚠️ اكتب اسم العنصر أولاً', 'warning');
+                nameInput.focus();
+                return;
+            }
+
+            try {
+                await db.collection(COLLECTION).add({
+                    name: name,
+                    value: value || '—',
+                    device: deviceId,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                nameInput.value = '';
+                valueInput.value = '';
+                nameInput.focus();
+
+                // Don't toast here — the onSnapshot listener will handle it
+                addLog('💾 Write sent: "' + name + '" = "' + (value || '—') + '"', 'success');
+
+            } catch (err) {
+                showToast('❌ خطأ في الحفظ', 'error');
+                addLog('❌ Write error: ' + err.message, 'error');
+            }
+        };
+
+        window._deleteRecord = async function(docId) {
+            try {
+                await db.collection(COLLECTION).doc(docId).delete();
+                addLog('🗑️ Delete sent: ' + docId, 'info');
+            } catch (err) {
+                showToast('❌ خطأ في الحذف', 'error');
+                addLog('❌ Delete error: ' + err.message, 'error');
+            }
+        };
+
+        // ==========================================
+        //  7. UI HELPERS
+        // ==========================================
+        function showToast(msg, type) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = 'toast ' + (type || 'info');
+            toast.textContent = msg;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function addLog(msg, type) {
+            const log = document.getElementById('logEntries');
+            const now = new Date();
+            const time = now.toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const ms = String(now.getMilliseconds()).padStart(3, '0');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry ' + (type || 'info');
+            entry.innerHTML = '<span class="time">[' + time + '.' + ms + ']</span> ' + msg;
+            log.prepend(entry);
+            // Keep max 80 entries
+            while (log.children.length > 80) {
+                log.removeChild(log.lastChild);
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ===== Enter key shortcuts =====
+        document.getElementById('inputName').addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('inputValue').focus();
+            }
+        });
+        document.getElementById('inputValue').addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                window.addRecord();
+            }
+        });
+
+        // ===== Initial Log =====
+        addLog('🚀 App started | Device: ' + deviceId, 'success');
+        addLog('📡 Project: yds1-19dab | Collection: ' + COLLECTION, 'info');
+        addLog('⏳ Connecting to Firestore...', 'warning');
+
+    })();
+    </script>
+</body>
+</html>
